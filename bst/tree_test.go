@@ -1,0 +1,5 @@
+package bst
+
+import (
+	"testing"
+)
