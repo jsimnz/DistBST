@@ -2,6 +2,7 @@ package bst
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 )
 
@@ -11,20 +12,25 @@ const (
 	PreOrder
 	PostOrder
 
-	_ action = iota
-	insertAction
-	findAction
-
 	_ childDir = iota
 	leftDir
 	rightDir
+
+	_ actionType = iota
+	insertAction
+	findAction
 )
 
 type Traversal int
-type action int
 type childDir int
+type actionType int
 
 type VisitFunc func(node *Node)
+type actionFunc func(node *Node)
+
+var (
+	emptyActionFunc actionFunc = func(node *Node) {}
+)
 
 // A Binary Search Tree
 type Tree struct {
@@ -39,35 +45,77 @@ func NewTree(node *Node) *Tree {
 	return tree
 }
 
+func (t *Tree) String() string {
+	t.Lock()
+	defer t.Unlock()
+	return fmt.Sprintf("{root %v, size: %v}", t.root, t.size)
+}
+
+func (t *Tree) Size() int {
+	return t.size
+}
+
 // Insert a Node into the Tree
 func (t *Tree) Insert(node *Node) error {
 	t.Lock()
 	defer t.Unlock()
 
-	root := t.root
-	insertRoot, _ := t.search(nil, root, node)
-	if insertRoot == nil { //Found the place to insert the node
-		t.size++
-		insertRoot = node
-		return nil
+	if t.search(t.root, node, insertAction, emptyActionFunc) != nil {
+		// there is already a node with that key, see searcht.
+		return errors.New("Duplicate node")
 	}
 
-	// else, there is already a node with that key, see searcht.
-	return errors.New("Duplicate node")
+	t.size++
+	return nil
+}
+
+func (t *Tree) search(root, node *Node, act actionType, actionFn actionFunc) error {
+	if root.Key() == node.Key() {
+		if act == findAction {
+			actionFn(root)
+			return nil
+		} else {
+			return errors.New("Node already exists")
+		}
+	} else if root.Key() < node.Key() {
+		if root.right != nil {
+			return t.search(root.right, node, act, actionFn)
+		}
+		if act == findAction {
+			return errors.New("Node not found")
+		}
+		root.right = node
+		return nil
+	} else if root.Key() > node.Key() {
+		if root.left != nil {
+			return t.search(root.left, node, act, actionFn)
+		}
+		if act == findAction {
+			return errors.New("")
+		}
+		root.left = node
+	}
+
+	return nil
 }
 
 // Find a Node in the tree, if it isnt found return NotExistError
-func (t *Tree) Find(node *Node) *Node {
+func (t *Tree) Find(key uint64) (bool, interface{}) {
 	t.Lock()
 	defer t.Unlock()
 
-	root := t.root
-	foundNode, _ := t.search(nil, root, node)
-	if foundNode != nil { //We found our node
-		return foundNode
+	node := NewNode(key, nil)
+
+	var results interface{}
+	err := t.search(t.root, node, findAction, func(node *Node) {
+		results = node.Value()
+	})
+
+	if err != nil {
+		return false, nil
 	}
 
-	return nil //Node not found
+	return true, results //Node not found
 }
 
 // Delete a Node in a tree and rebalance
@@ -75,44 +123,13 @@ func (t *Tree) Delete(node *Node) error {
 	t.Lock()
 	defer t.Unlock()
 
-	root := t.root
-	foundNode, parent := t.search(nil, root, node)
-	if foundNode != nil { //We found our node, now DELETE IT!!
-
-		//Apply the delete algorithm
-		numChildren := 0
-		if foundNode.left != nil {
-			numChildren++
-		}
-		if foundNode.right != nil {
-			numChildren++
-		}
-
-		switch numChildren {
-		case 0:
-			foundNode = nil
-			t.size--
-			return nil
-		case 1:
-			if parent.left == foundNode {
-				t.oneSubTreeDelete(parent, foundNode, leftDir)
-			} else {
-				t.oneSubTreeDelete(parent, foundNode, rightDir)
-			}
-			t.size--
-			return nil
-		case 2:
-			t.twoSubTreeDelete(foundNode)
-			t.size--
-			return nil
-		}
-
-	}
+	
+	
 
 	return errors.New("Node not found")
 }
 
-func (t *Tree) oneSubTreeDelete(parent, node *Node, dir childDir) {
+/*func (t *Tree) oneSubTreeDelete(parent, node *Node, dir childDir) {
 	var newChild *Node
 	if node.left != nil {
 		newChild = node.left
@@ -141,28 +158,7 @@ func (t *Tree) twoSubTreeDelete(node *Node) {
 
 	// delete the duplicate node (aka the minNode from above)
 	rightTree.Delete(minNode)
-}
-
-// Recursivly iterate through the tree with a given key, apply action when node or position is found
-func (t *Tree) search(parent, root, node *Node) (*Node, *Node) {
-
-	// Return the root if its the root we're looking for, so the action can be applied to it
-	if root == nil || root.key == node.key {
-		return root, parent
-	}
-
-	if root.key > node.key {
-		parent = root
-		root = root.left
-		return t.search(parent, root, node)
-	} else if root.key < node.key {
-		parent = root
-		root = root.right
-		return t.search(parent, root, node)
-	}
-
-	return nil, nil
-}
+}*/
 
 // Traverse the tree and apply the Visit function on each Node
 func (t *Tree) Traverse(traverse Traversal, visit VisitFunc) {

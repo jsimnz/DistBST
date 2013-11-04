@@ -8,7 +8,7 @@ import (
 A Node represents a node in the tree
 */
 type Node struct {
-	key   uint64
+	key   *uint64
 	value interface{}
 	left  *Node
 	right *Node
@@ -17,13 +17,13 @@ type Node struct {
 
 // Create a new node
 func NewNode(key uint64, value interface{}) *Node {
-	node := &Node{key: key, value: value}
+	node := &Node{key: &key, value: value}
 	return node
 }
 
 // Get the node's key
 func (n *Node) Key() uint64 {
-	return n.key
+	return *n.key
 }
 
 // Get the node's value
